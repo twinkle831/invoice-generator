@@ -8,6 +8,7 @@ A modern, responsive Invoice Generator built with React. It provides a sleek use
 
 - Responsive design across desktop, tablet, and mobile devices  
 - Smooth animations for adding and deleting invoice items  
+- Theme options (Minimal , professional) for invoice demo
 - Real-time form validation with error, warning, success, and feedback states  
 - Live updated invoice preview section  
 - Export invoices as professional PDF documents using html2canvas and jsPDF  

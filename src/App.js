@@ -1,8 +1,9 @@
 import React, { useState, useRef } from 'react';
-import { Plus, Trash2, FileText, Calendar, User, CheckCircle, AlertCircle, XCircle, Download, Moon, Sun } from 'lucide-react';
+import { Plus, Trash2, FileText, Calendar, User, CheckCircle, AlertCircle, XCircle, Download, Moon, Sun, Palette } from 'lucide-react';
 
 const InvoiceGenerator = () => {
   const [darkMode, setDarkMode] = useState(false);
+  const [selectedTemplate, setSelectedTemplate] = useState('professional');
   const [invoice, setInvoice] = useState({
     clientName: '',
     invoiceDate: new Date().toISOString().split('T')[0],
@@ -16,6 +17,22 @@ const InvoiceGenerator = () => {
   const [removingItems, setRemovingItems] = useState(new Set());
   const [isExporting, setIsExporting] = useState(false);
   const invoiceRef = useRef();
+
+  // Template configurations
+  const templates = {
+    minimal: {
+      name: 'Minimal',
+      description: 'Clean and simple design'
+    },
+    professional: {
+      name: 'Professional',
+      description: 'Business-ready layout'
+    },
+    modern: {
+      name: 'Modern',
+      description: 'Contemporary styling'
+    }
+  };
 
   const toggleDarkMode = () => {
     setDarkMode(!darkMode);
@@ -268,7 +285,7 @@ const InvoiceGenerator = () => {
       // Generate filename
       const clientName = invoice.clientName.trim() || 'Client';
       const date = new Date(invoice.invoiceDate).toISOString().split('T')[0];
-      const filename = `Invoice_${clientName.replace(/[^a-zA-Z0-9]/g, '_')}_${date}.pdf`;
+      const filename = `Invoice_${clientName.replace(/[^a-zA-Z0-9]/g, '_')}_${date}_${selectedTemplate}.pdf`;
       
       pdf.save(filename);
     } catch (error) {
@@ -341,6 +358,332 @@ const InvoiceGenerator = () => {
     );
   };
 
+  // Render template-specific preview
+  const renderInvoicePreview = () => {
+    const baseClasses = {
+      container: `border rounded-lg p-8 transition-colors duration-300 ${
+        darkMode ? 'border-gray-600 bg-gray-700' : 'border-slate-300 bg-slate-50'
+      }`,
+      header: darkMode ? 'text-white' : 'text-slate-800',
+      subheader: darkMode ? 'text-gray-300' : 'text-slate-800',
+      text: darkMode ? 'text-gray-200' : 'text-slate-700',
+      border: darkMode ? 'border-gray-500' : 'border-slate-400',
+      lightBorder: darkMode ? 'border-gray-600' : 'border-slate-200',
+      accent: darkMode ? 'bg-gray-400' : 'bg-slate-700'
+    };
+
+    switch (selectedTemplate) {
+      case 'minimal':
+        return (
+          <div className={baseClasses.container}>
+            {/* Minimal Header */}
+            <div className="mb-12">
+              <h1 className={`text-2xl font-light tracking-widest uppercase ${baseClasses.header}`}>
+                Invoice
+              </h1>
+            </div>
+
+            {/* Minimal Info */}
+            <div className="grid grid-cols-2 gap-8 mb-12">
+              <div>
+                <p className={`text-xs uppercase tracking-wider mb-2 ${baseClasses.subheader}`}>
+                  To
+                </p>
+                <p className={`text-xl font-light ${baseClasses.text}`}>
+                  {invoice.clientName || 'Client Name'}
+                </p>
+              </div>
+              <div className="text-right">
+                <p className={`text-xs uppercase tracking-wider mb-2 ${baseClasses.subheader}`}>
+                  Date
+                </p>
+                <p className={`text-xl font-light ${baseClasses.text}`}>
+                  {formatDate(invoice.invoiceDate)}
+                </p>
+              </div>
+            </div>
+
+            {/* Minimal Table */}
+            <div className="mb-12">
+              <table className="w-full">
+                <thead>
+                  <tr className={`border-b ${baseClasses.border}`}>
+                    <th className={`text-left py-4 text-xs uppercase tracking-wider font-light ${baseClasses.subheader}`}>
+                      Description
+                    </th>
+                    <th className={`text-center py-4 text-xs uppercase tracking-wider font-light ${baseClasses.subheader}`}>
+                      Qty
+                    </th>
+                    <th className={`text-right py-4 text-xs uppercase tracking-wider font-light ${baseClasses.subheader}`}>
+                      Rate
+                    </th>
+                    <th className={`text-right py-4 text-xs uppercase tracking-wider font-light ${baseClasses.subheader}`}>
+                      Amount
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {invoice.lineItems.filter(item => !removingItems.has(item.id)).map((item, index) => (
+                    <tr key={item.id}>
+                      <td className={`py-4 font-light ${baseClasses.text}`}>
+                        {item.description || `Item ${index + 1}`}
+                      </td>
+                      <td className={`py-4 text-center font-light ${baseClasses.text}`}>
+                        {item.quantity || 0}
+                      </td>
+                      <td className={`py-4 text-right font-light ${baseClasses.text}`}>
+                        {formatCurrency(parseFloat(item.rate) || 0)}
+                      </td>
+                      <td className={`py-4 text-right font-light ${baseClasses.text}`}>
+                        {formatCurrency((parseFloat(item.quantity) || 0) * (parseFloat(item.rate) || 0))}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Minimal Totals */}
+            <div className="flex justify-end">
+              <div className="w-64 space-y-2">
+                <div className="flex justify-between">
+                  <span className={`text-sm font-light ${baseClasses.text}`}>Subtotal</span>
+                  <span className={`text-sm font-light ${baseClasses.text}`}>{formatCurrency(subtotal)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className={`text-sm font-light ${baseClasses.text}`}>GST 18%</span>
+                  <span className={`text-sm font-light ${baseClasses.text}`}>{formatCurrency(gstAmount)}</span>
+                </div>
+                <div className={`flex justify-between pt-2 border-t ${baseClasses.border}`}>
+                  <span className={`font-light text-lg ${baseClasses.header}`}>Total</span>
+                  <span className={`font-light text-lg ${baseClasses.header}`}>{formatCurrency(total)}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+
+      case 'modern':
+        return (
+          <div className={`border rounded-xl p-8 transition-colors duration-300 ${
+            darkMode ? 'border-gray-600 bg-gradient-to-br from-gray-800 to-gray-700' : 'border-slate-300 bg-gradient-to-br from-white to-slate-50'
+          }`}>
+            {/* Modern Header */}
+            <div className="text-center mb-10">
+              <div className={`inline-block px-6 py-2 rounded-full mb-4 ${
+                darkMode ? 'bg-gradient-to-r from-blue-600 to-purple-600' : 'bg-gradient-to-r from-blue-500 to-purple-500'
+              }`}>
+                <h1 className="text-2xl font-bold text-white tracking-tight">INVOICE</h1>
+              </div>
+            </div>
+
+            {/* Modern Info Cards */}
+            <div className="grid grid-cols-2 gap-6 mb-10">
+              <div className={`p-6 rounded-lg ${
+                darkMode ? 'bg-gray-600 bg-opacity-50' : 'bg-white shadow-sm border border-slate-100'
+              }`}>
+                <h3 className={`text-sm font-semibold mb-3 uppercase tracking-wide ${
+                  darkMode ? 'text-blue-400' : 'text-blue-600'
+                }`}>
+                  Bill To
+                </h3>
+                <p className={`text-lg font-semibold ${baseClasses.header}`}>
+                  {invoice.clientName || 'Client Name'}
+                </p>
+              </div>
+              <div className={`p-6 rounded-lg ${
+                darkMode ? 'bg-gray-600 bg-opacity-50' : 'bg-white shadow-sm border border-slate-100'
+              }`}>
+                <h3 className={`text-sm font-semibold mb-3 uppercase tracking-wide ${
+                  darkMode ? 'text-blue-400' : 'text-blue-600'
+                }`}>
+                  Invoice Date
+                </h3>
+                <p className={`text-lg font-semibold ${baseClasses.header}`}>
+                  {formatDate(invoice.invoiceDate)}
+                </p>
+              </div>
+            </div>
+
+            {/* Modern Table */}
+            <div className={`rounded-lg overflow-hidden mb-8 ${
+              darkMode ? 'bg-gray-600 bg-opacity-30' : 'bg-white border border-slate-100'
+            }`}>
+              <table className="w-full">
+                <thead className={`${
+                  darkMode ? 'bg-gray-600' : 'bg-slate-50'
+                }`}>
+                  <tr>
+                    <th className={`text-left py-4 px-6 font-semibold text-sm ${baseClasses.subheader}`}>
+                      Description
+                    </th>
+                    <th className={`text-center py-4 px-6 font-semibold text-sm ${baseClasses.subheader}`}>
+                      Qty
+                    </th>
+                    <th className={`text-right py-4 px-6 font-semibold text-sm ${baseClasses.subheader}`}>
+                      Rate
+                    </th>
+                    <th className={`text-right py-4 px-6 font-semibold text-sm ${baseClasses.subheader}`}>
+                      Amount
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {invoice.lineItems.filter(item => !removingItems.has(item.id)).map((item, index) => (
+                    <tr key={item.id} className={`border-b ${baseClasses.lightBorder}`}>
+                      <td className={`py-4 px-6 font-medium ${baseClasses.text}`}>
+                        {item.description || `Item ${index + 1}`}
+                      </td>
+                      <td className={`py-4 px-6 text-center font-medium ${baseClasses.text}`}>
+                        {item.quantity || 0}
+                      </td>
+                      <td className={`py-4 px-6 text-right font-medium ${baseClasses.text}`}>
+                        {formatCurrency(parseFloat(item.rate) || 0)}
+                      </td>
+                      <td className={`py-4 px-6 text-right font-semibold ${baseClasses.text}`}>
+                        {formatCurrency((parseFloat(item.quantity) || 0) * (parseFloat(item.rate) || 0))}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Modern Totals */}
+            <div className="flex justify-end">
+              <div className={`p-6 rounded-lg w-80 ${
+                darkMode ? 'bg-gray-600 bg-opacity-50' : 'bg-slate-50 border border-slate-200'
+              }`}>
+                <div className="space-y-3">
+                  <div className="flex justify-between">
+                    <span className={`font-medium ${baseClasses.text}`}>Subtotal:</span>
+                    <span className={`font-semibold ${baseClasses.text}`}>{formatCurrency(subtotal)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className={`font-medium ${baseClasses.text}`}>GST (18%):</span>
+                    <span className={`font-semibold ${baseClasses.text}`}>{formatCurrency(gstAmount)}</span>
+                  </div>
+                  <div className={`flex justify-between pt-3 border-t ${baseClasses.border}`}>
+                    <span className={`font-bold text-lg ${baseClasses.header}`}>Total:</span>
+                    <span className={`font-bold text-lg ${
+                      darkMode ? 'text-blue-400' : 'text-blue-600'
+                    }`}>{formatCurrency(total)}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Modern Footer */}
+            <div className="mt-12 text-center">
+              <div className={`inline-block px-8 py-3 rounded-full ${
+                darkMode ? 'bg-gray-600 bg-opacity-50' : 'bg-slate-100'
+              }`}>
+                <p className={`font-medium ${baseClasses.text}`}>
+                  Thank you for your business!
+                </p>
+              </div>
+            </div>
+          </div>
+        );
+
+      default: // professional
+        return (
+          <div className={baseClasses.container}>
+            {/* Professional Header */}
+            <div className="text-center mb-8">
+              <h1 className={`text-3xl font-bold mb-2 tracking-tight ${baseClasses.header}`}>INVOICE</h1>
+              <div className={`w-20 h-1 mx-auto rounded ${baseClasses.accent}`}></div>
+            </div>
+
+            {/* Professional Info */}
+            <div className="grid grid-cols-2 gap-8 mb-8">
+              <div>
+                <h3 className={`font-semibold mb-2 text-sm uppercase tracking-wide ${baseClasses.subheader}`}>
+                  Bill To:
+                </h3>
+                <p className={`font-medium text-lg ${baseClasses.text}`}>
+                  {invoice.clientName || 'Client Name'}
+                </p>
+              </div>
+              <div className="text-right">
+                <h3 className={`font-semibold mb-2 text-sm uppercase tracking-wide ${baseClasses.subheader}`}>
+                  Invoice Date:
+                </h3>
+                <p className={`font-medium text-lg ${baseClasses.text}`}>
+                  {formatDate(invoice.invoiceDate)}
+                </p>
+              </div>
+            </div>
+
+            {/* Professional Table */}
+            <div className="mb-8">
+              <table className="w-full">
+                <thead>
+                  <tr className={`border-b-2 ${baseClasses.border}`}>
+                    <th className={`text-left py-3 font-semibold text-sm uppercase tracking-wide ${baseClasses.subheader}`}>
+                      Description
+                    </th>
+                    <th className={`text-center py-3 font-semibold text-sm uppercase tracking-wide ${baseClasses.subheader}`}>
+                      Qty
+                    </th>
+                    <th className={`text-right py-3 font-semibold text-sm uppercase tracking-wide ${baseClasses.subheader}`}>
+                      Rate
+                    </th>
+                    <th className={`text-right py-3 font-semibold text-sm uppercase tracking-wide ${baseClasses.subheader}`}>
+                      Amount
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {invoice.lineItems.filter(item => !removingItems.has(item.id)).map((item, index) => (
+                    <tr key={item.id} className={`border-b ${baseClasses.lightBorder}`}>
+                      <td className={`py-3 font-medium ${baseClasses.text}`}>
+                        {item.description || `Item ${index + 1}`}
+                      </td>
+                      <td className={`py-3 text-center font-medium ${baseClasses.text}`}>
+                        {item.quantity || 0}
+                      </td>
+                      <td className={`py-3 text-right font-medium ${baseClasses.text}`}>
+                        {formatCurrency(parseFloat(item.rate) || 0)}
+                      </td>
+                      <td className={`py-3 text-right font-semibold ${baseClasses.text}`}>
+                        {formatCurrency((parseFloat(item.quantity) || 0) * (parseFloat(item.rate) || 0))}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Professional Totals */}
+            <div className="flex justify-end">
+              <div className="w-64">
+                <div className={`flex justify-between py-2 border-b ${baseClasses.lightBorder}`}>
+                  <span className={`font-medium ${baseClasses.text}`}>Subtotal:</span>
+                  <span className={`font-semibold ${baseClasses.header}`}>{formatCurrency(subtotal)}</span>
+                </div>
+                <div className={`flex justify-between py-2 border-b ${baseClasses.lightBorder}`}>
+                  <span className={`font-medium ${baseClasses.text}`}>GST (18%):</span>
+                  <span className={`font-semibold ${baseClasses.header}`}>{formatCurrency(gstAmount)}</span>
+                </div>
+                <div className={`flex justify-between py-3 border-b-2 ${baseClasses.border}`}>
+                  <span className={`font-bold text-lg ${baseClasses.header}`}>Total:</span>
+                  <span className={`font-bold text-lg ${baseClasses.header}`}>{formatCurrency(total)}</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Professional Footer */}
+            <div className="mt-12 pt-6 text-center border-t border-dashed border-slate-300">
+              <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-slate-600'}`}>
+                Thank you for your business!
+              </p>
+            </div>
+          </div>
+        );
+    }
+  };
+
   return (
     <div className={`min-h-screen p-4 transition-colors duration-300 ${darkMode ? 'dark bg-gray-900' : 'bg-slate-50'}`}>
       <div className="max-w-7xl mx-auto">
@@ -379,6 +722,46 @@ const InvoiceGenerator = () => {
               <User className={`w-5 h-5 ${darkMode ? 'text-gray-400' : 'text-slate-600'}`} />
               Invoice Details
             </h2>
+
+            {/* Template Selector */}
+            <div className="mb-6">
+              <label className={`block text-sm font-medium mb-3 flex items-center gap-2 ${
+                darkMode ? 'text-gray-300' : 'text-slate-700'
+              }`}>
+                <Palette className={`w-4 h-4 ${darkMode ? 'text-gray-400' : 'text-slate-600'}`} />
+                Invoice Template
+              </label>
+              <div className="grid grid-cols-3 gap-2">
+                {Object.entries(templates).map(([key, template]) => (
+                  <button
+                    key={key}
+                    onClick={() => setSelectedTemplate(key)}
+                    className={`p-3 rounded-md text-sm font-medium transition-all duration-200 transform hover:scale-105 active:scale-95 ${
+                      selectedTemplate === key
+                        ? darkMode
+                          ? 'bg-blue-600 text-white shadow-lg'
+                          : 'bg-blue-600 text-white shadow-md'
+                        : darkMode
+                          ? 'bg-gray-700 text-gray-300 hover:bg-gray-600 border border-gray-600'
+                          : 'bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-200'
+                    }`}
+                  >
+                    <div className="text-center">
+                      <div className="font-semibold">{template.name}</div>
+                      <div className={`text-xs mt-1 ${
+                        selectedTemplate === key
+                          ? 'text-blue-100'
+                          : darkMode
+                            ? 'text-gray-400'
+                            : 'text-slate-500'
+                      }`}>
+                        {template.description}
+                      </div>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
 
             {/* Client Info */}
             <div className="space-y-4 mb-8">
@@ -437,7 +820,7 @@ const InvoiceGenerator = () => {
                   className={`flex items-center gap-2 px-4 py-2 text-white rounded-md transition-all duration-200 transform hover:scale-105 active:scale-95 font-medium ${
                     darkMode 
                       ? 'bg-gray-600 hover:bg-gray-500' 
-                      : 'bg-slate-700 hover:bg-slate-800'
+                      : 'bg-green-700 hover:bg-green-800'
                   }`}
                 >
                   <Plus className="w-4 h-4" />
@@ -573,7 +956,7 @@ const InvoiceGenerator = () => {
                 className={`flex-1 py-3 px-4 text-white rounded-md transition-all duration-200 transform hover:scale-105 active:scale-95 font-semibold ${
                   darkMode 
                     ? 'bg-gray-600 hover:bg-gray-500' 
-                    : 'bg-slate-800 hover:bg-slate-900'
+                    : 'bg-blue-600 hover:bg-blue-700'
                 }`}
               >
                 Validate Invoice
@@ -587,7 +970,7 @@ const InvoiceGenerator = () => {
                     ? 'bg-green-400' 
                     : darkMode 
                       ? 'bg-gray-600 hover:bg-gray-500' 
-                      : 'bg-slate-800 hover:bg-slate-900'
+                      : 'bg-blue-600 hover:bg-blue-700'
                 }`}
               >
                 {isExporting ? (
@@ -614,141 +997,23 @@ const InvoiceGenerator = () => {
               ? 'bg-gray-800 border-gray-700' 
               : 'bg-white border-slate-200'
           }`}>
-            <div ref={invoiceRef} className={`border rounded-lg p-8 transition-colors duration-300 ${
-              darkMode 
-                ? 'border-gray-600 bg-gray-700' 
-                : 'border-slate-300 bg-slate-50'
-            }`}>
-              {/* Invoice Header */}
-              <div className="text-center mb-8">
-                <h1 className={`text-3xl font-bold mb-2 tracking-tight ${
-                  darkMode ? 'text-white' : 'text-slate-800'
-                }`}>INVOICE</h1>
-                <div className={`w-20 h-1 mx-auto rounded ${
-                  darkMode ? 'bg-gray-400' : 'bg-slate-700'
-                }`}></div>
+            <div className="mb-4 flex items-center justify-between">
+              <h2 className={`text-xl font-semibold tracking-tight ${
+                darkMode ? 'text-white' : 'text-slate-800'
+              }`}>
+                Preview - {templates[selectedTemplate].name}
+              </h2>
+              <div className={`px-3 py-1 rounded-full text-xs font-medium ${
+                darkMode 
+                  ? 'bg-gray-700 text-gray-300' 
+                  : 'bg-slate-100 text-slate-600'
+              }`}>
+                {templates[selectedTemplate].description}
               </div>
-
-              {/* Invoice Info */}
-              <div className="grid grid-cols-2 gap-8 mb-8">
-                <div>
-                  <h3 className={`font-semibold mb-2 text-sm uppercase tracking-wide ${
-                    darkMode ? 'text-gray-300' : 'text-slate-800'
-                  }`}>Bill To:</h3>
-                  <p className={`font-medium text-lg ${
-                    darkMode ? 'text-gray-200' : 'text-slate-700'
-                  }`}>
-                    {invoice.clientName || 'Client Name'}
-                  </p>
-                </div>
-                <div className="text-right">
-                  <h3 className={`font-semibold mb-2 text-sm uppercase tracking-wide ${
-                    darkMode ? 'text-gray-300' : 'text-slate-800'
-                  }`}>Invoice Date:</h3>
-                  <p className={`font-medium text-lg ${
-                    darkMode ? 'text-gray-200' : 'text-slate-700'
-                  }`}>
-                    {formatDate(invoice.invoiceDate)}
-                  </p>
-                </div>
-              </div>
-
-              {/* Items Table */}
-              <div className="mb-8">
-                <table className="w-full">
-                  <thead>
-                    <tr className={`border-b-2 ${
-                      darkMode ? 'border-gray-500' : 'border-slate-400'
-                    }`}>
-                      <th className={`text-left py-3 font-semibold text-sm uppercase tracking-wide ${
-                        darkMode ? 'text-gray-200' : 'text-slate-800'
-                      }`}>Description</th>
-                      <th className={`text-center py-3 font-semibold text-sm uppercase tracking-wide ${
-                        darkMode ? 'text-gray-200' : 'text-slate-800'
-                      }`}>Qty</th>
-                      <th className={`text-right py-3 font-semibold text-sm uppercase tracking-wide ${
-                        darkMode ? 'text-gray-200' : 'text-slate-800'
-                      }`}>Rate</th>
-                      <th className={`text-right py-3 font-semibold text-sm uppercase tracking-wide ${
-                        darkMode ? 'text-gray-200' : 'text-slate-800'
-                      }`}>Amount</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {invoice.lineItems.filter(item => !removingItems.has(item.id)).map((item, index) => (
-                      <tr key={item.id} className={`border-b ${
-                        darkMode ? 'border-gray-600' : 'border-slate-200'
-                      }`}>
-                        <td className={`py-3 font-medium ${
-                          darkMode ? 'text-gray-200' : 'text-slate-700'
-                        }`}>
-                          {item.description || `Item ${index + 1}`}
-                        </td>
-                        <td className={`py-3 text-center font-medium ${
-                          darkMode ? 'text-gray-200' : 'text-slate-700'
-                        }`}>
-                          {item.quantity || 0}
-                        </td>
-                        <td className={`py-3 text-right font-medium ${
-                          darkMode ? 'text-gray-200' : 'text-slate-700'
-                        }`}>
-                          {formatCurrency(parseFloat(item.rate) || 0)}
-                        </td>
-                        <td className={`py-3 text-right font-semibold ${
-                          darkMode ? 'text-gray-200' : 'text-slate-700'
-                        }`}>
-                         {formatCurrency((parseFloat(item.quantity) || 0) * (parseFloat(item.rate) || 0))}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-
-              {/* Totals */}
-              <div className="flex justify-end">
-                <div className="w-64">
-                  <div className={`flex justify-between py-2 border-b ${
-                    darkMode ? 'border-gray-600' : 'border-slate-200'
-                  }`}>
-                    <span className={`font-medium ${
-                      darkMode ? 'text-gray-300' : 'text-slate-700'
-                    }`}>Subtotal:</span>
-                    <span className={`font-semibold ${
-                      darkMode ? 'text-gray-200' : 'text-slate-800'
-                    }`}>{formatCurrency(subtotal)}</span>
-                  </div>
-                  <div className={`flex justify-between py-2 border-b ${
-                    darkMode ? 'border-gray-600' : 'border-slate-200'
-                  }`}>
-                    <span className={`font-medium ${
-                      darkMode ? 'text-gray-300' : 'text-slate-700'
-                    }`}>GST (18%):</span>
-                    <span className={`font-semibold ${
-                      darkMode ? 'text-gray-200' : 'text-slate-800'
-                    }`}>{formatCurrency(gstAmount)}</span>
-                  </div>
-                  <div className={`flex justify-between py-3 border-b-2 ${
-                    darkMode ? 'border-gray-500' : 'border-slate-400'
-                  }`}>
-                    <span className={`font-bold text-lg ${
-                      darkMode ? 'text-gray-200' : 'text-slate-800'
-                    }`}>Total:</span>
-                    <span className={`font-bold text-lg ${
-                      darkMode ? 'text-gray-100' : 'text-slate-900'
-                    }`}>{formatCurrency(total)}</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Footer */}
-              <div className="mt-12 pt-6 text-center border-t border-dashed border-slate-300">
-                <p className={`text-sm ${
-                  darkMode ? 'text-gray-400' : 'text-slate-600'
-                }`}>
-                  Thank you for your business!
-                </p>
-              </div>
+            </div>
+            
+            <div ref={invoiceRef}>
+              {renderInvoicePreview()}
             </div>
           </div>
         </div>
