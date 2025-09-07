@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
-import { Plus, Trash2, FileText, Calendar, User, CheckCircle, AlertCircle, XCircle } from 'lucide-react';
+import React, { useState, useRef } from 'react';
+import { Plus, Trash2, FileText, Calendar, User, CheckCircle, AlertCircle, XCircle, Download, Moon, Sun } from 'lucide-react';
 
 const InvoiceGenerator = () => {
+  const [darkMode, setDarkMode] = useState(false);
   const [invoice, setInvoice] = useState({
     clientName: '',
     invoiceDate: new Date().toISOString().split('T')[0],
@@ -13,6 +14,12 @@ const InvoiceGenerator = () => {
   const [errors, setErrors] = useState({});
   const [validationStatus, setValidationStatus] = useState(null);
   const [removingItems, setRemovingItems] = useState(new Set());
+  const [isExporting, setIsExporting] = useState(false);
+  const invoiceRef = useRef();
+
+  const toggleDarkMode = () => {
+    setDarkMode(!darkMode);
+  };
 
   // Calculate totals
   const subtotal = invoice.lineItems.reduce((sum, item) => {
@@ -206,6 +213,72 @@ const InvoiceGenerator = () => {
     return Object.keys(newErrors).length === 0;
   };
 
+  // Export to PDF
+  const exportToPDF = async () => {
+    if (!validateForm()) {
+      return;
+    }
+
+    setIsExporting(true);
+    
+    try {
+      // Load html2canvas
+      const script1 = document.createElement('script');
+      script1.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
+      document.head.appendChild(script1);
+      
+      // Load jsPDF
+      const script2 = document.createElement('script');
+      script2.src = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
+      document.head.appendChild(script2);
+      
+      await new Promise(resolve => {
+        let loaded = 0;
+        const checkLoaded = () => {
+          loaded++;
+          if (loaded === 2) resolve();
+        };
+        script1.onload = checkLoaded;
+        script2.onload = checkLoaded;
+      });
+
+      const element = invoiceRef.current;
+      
+      // Generate canvas from the invoice preview
+      const canvas = await window.html2canvas(element, {
+        scale: 2,
+        useCORS: true,
+        allowTaint: true,
+        backgroundColor: '#ffffff',
+        width: element.offsetWidth,
+        height: element.offsetHeight
+      });
+
+      const imgData = canvas.toDataURL('image/png');
+      
+      // Create PDF
+      const pdf = new window.jspdf.jsPDF({
+        orientation: 'portrait',
+        unit: 'px',
+        format: [canvas.width / 2, canvas.height / 2]
+      });
+
+      pdf.addImage(imgData, 'PNG', 0, 0, canvas.width / 2, canvas.height / 2);
+      
+      // Generate filename
+      const clientName = invoice.clientName.trim() || 'Client';
+      const date = new Date(invoice.invoiceDate).toISOString().split('T')[0];
+      const filename = `Invoice_${clientName.replace(/[^a-zA-Z0-9]/g, '_')}_${date}.pdf`;
+      
+      pdf.save(filename);
+    } catch (error) {
+      console.error('Error exporting PDF:', error);
+      alert('Failed to export PDF. Please try again.');
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
   // Format currency
   const formatCurrency = (amount) => {
     return new Intl.NumberFormat('en-IN', {
@@ -235,9 +308,15 @@ const InvoiceGenerator = () => {
     };
     
     const colors = {
-      success: 'bg-green-50 border-green-200 text-green-800',
-      warning: 'bg-yellow-50 border-yellow-200 text-yellow-800',
-      error: 'bg-red-50 border-red-200 text-red-800'
+      success: darkMode 
+        ? 'bg-green-900 border-green-700 text-green-200' 
+        : 'bg-green-50 border-green-200 text-green-800',
+      warning: darkMode 
+        ? 'bg-yellow-900 border-yellow-700 text-yellow-200' 
+        : 'bg-yellow-50 border-yellow-200 text-yellow-800',
+      error: darkMode 
+        ? 'bg-red-900 border-red-700 text-red-200' 
+        : 'bg-red-50 border-red-200 text-red-800'
     };
 
     return (
@@ -263,55 +342,86 @@ const InvoiceGenerator = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
+    <div className={`min-h-screen p-4 transition-colors duration-300 ${darkMode ? 'dark bg-gray-900' : 'bg-slate-50'}`}>
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="text-center mb-8">
-          <div className="flex items-center justify-center gap-2 mb-4">
-            <FileText className="w-8 h-8 text-indigo-600" />
-            <h1 className="text-3xl font-bold text-gray-800">Invoice Generator</h1>
+          <div className="flex items-center justify-center gap-3 mb-4 relative">
+            <FileText className={`w-8 h-8 ${darkMode ? 'text-gray-300' : 'text-slate-700'}`} />
+            <h1 className={`text-3xl font-semibold tracking-tight ${darkMode ? 'text-white' : 'text-slate-800'}`}>Invoice Generator</h1>
+            
+            {/* Dark Mode Toggle */}
+            <button
+              onClick={toggleDarkMode}
+              className={`absolute right-0 p-2 rounded-full transition-all duration-300 transform hover:scale-110 active:scale-95 ${
+                darkMode 
+                  ? 'bg-gray-800 text-yellow-400 hover:bg-gray-700 shadow-lg' 
+                  : 'bg-white text-slate-600 hover:bg-slate-100 shadow-md border border-slate-200'
+              }`}
+              title={darkMode ? 'Switch to light mode' : 'Switch to dark mode'}
+            >
+              {darkMode ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
+            </button>
           </div>
-          <p className="text-gray-600">Create professional invoices with live preview</p>
+          <p className={`font-medium ${darkMode ? 'text-gray-400' : 'text-slate-600'}`}>Create professional invoices with real-time preview</p>
         </div>
 
         <div className="grid lg:grid-cols-2 gap-8">
           {/* Form Panel */}
-          <div className="bg-white rounded-xl shadow-lg p-6 h-fit">
-            <h2 className="text-xl font-semibold text-gray-800 mb-6 flex items-center gap-2">
-              <User className="w-5 h-5" />
+          <div className={`rounded-lg shadow-sm border p-8 h-fit transition-colors duration-300 ${
+            darkMode 
+              ? 'bg-gray-800 border-gray-700' 
+              : 'bg-white border-slate-200'
+          }`}>
+            <h2 className={`text-xl font-semibold mb-6 flex items-center gap-2 tracking-tight ${
+              darkMode ? 'text-white' : 'text-slate-800'
+            }`}>
+              <User className={`w-5 h-5 ${darkMode ? 'text-gray-400' : 'text-slate-600'}`} />
               Invoice Details
             </h2>
 
             {/* Client Info */}
             <div className="space-y-4 mb-8">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className={`block text-sm font-medium mb-2 ${
+                  darkMode ? 'text-gray-300' : 'text-slate-700'
+                }`}>
                   Client Name *
                 </label>
                 <input
                   type="text"
                   value={invoice.clientName}
                   onChange={(e) => updateInvoice('clientName', e.target.value)}
-                  className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200 ${
-                    errors.clientName ? 'border-red-500 shake' : 'border-gray-300'
+                  className={`w-full px-4 py-3 border rounded-md focus:ring-2 focus:ring-slate-500 focus:border-slate-500 transition-all duration-200 font-medium ${
+                    darkMode 
+                      ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400 focus:bg-gray-600' 
+                      : 'bg-white border-slate-300 text-slate-900 placeholder-slate-400'
+                  } ${
+                    errors.clientName ? 'border-red-500 shake' : ''
                   }`}
                   placeholder="Enter client name"
                 />
                 {errors.clientName && (
-                  <p className="mt-1 text-sm text-red-600 animate-pulse">{errors.clientName}</p>
+                  <p className="mt-1 text-sm text-red-600 animate-pulse font-medium">{errors.clientName}</p>
                 )}
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
-                  <Calendar className="w-4 h-4" />
+                <label className={`block text-sm font-medium mb-2 flex items-center gap-2 ${
+                  darkMode ? 'text-gray-300' : 'text-slate-700'
+                }`}>
+                  <Calendar className={`w-4 h-4 ${darkMode ? 'text-gray-400' : 'text-slate-600'}`} />
                   Invoice Date
                 </label>
                 <input
                   type="date"
                   value={invoice.invoiceDate}
                   onChange={(e) => updateInvoice('invoiceDate', e.target.value)}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors"
+                  className={`w-full px-4 py-3 border rounded-md focus:ring-2 focus:ring-slate-500 focus:border-slate-500 transition-colors font-medium ${
+                    darkMode 
+                      ? 'bg-gray-700 border-gray-600 text-white' 
+                      : 'bg-white border-slate-300 text-slate-900'
+                  }`}
                 />
               </div>
             </div>
@@ -319,10 +429,16 @@ const InvoiceGenerator = () => {
             {/* Line Items */}
             <div className="mb-6">
               <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-medium text-gray-800">Line Items</h3>
+                <h3 className={`text-lg font-semibold tracking-tight ${
+                  darkMode ? 'text-white' : 'text-slate-800'
+                }`}>Line Items</h3>
                 <button
                   onClick={addLineItem}
-                  className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-all duration-200 transform hover:scale-105 active:scale-95"
+                  className={`flex items-center gap-2 px-4 py-2 text-white rounded-md transition-all duration-200 transform hover:scale-105 active:scale-95 font-medium ${
+                    darkMode 
+                      ? 'bg-gray-600 hover:bg-gray-500' 
+                      : 'bg-slate-700 hover:bg-slate-800'
+                  }`}
                 >
                   <Plus className="w-4 h-4" />
                   Add Item
@@ -333,24 +449,30 @@ const InvoiceGenerator = () => {
                 {invoice.lineItems.map((item, index) => (
                   <div
                     key={item.id}
-                    className={`p-4 border border-gray-200 rounded-lg transition-all duration-300 transform ${
+                    className={`p-4 border rounded-md transition-all duration-300 transform ${
+                      darkMode 
+                        ? 'border-gray-600 hover:border-gray-500 hover:shadow-sm bg-gray-750' 
+                        : 'border-slate-200 hover:border-slate-300 hover:shadow-sm bg-white'
+                    } ${
                       removingItems.has(item.id) 
                         ? 'opacity-0 scale-95 -translate-x-4' 
-                        : 'opacity-100 scale-100 translate-x-0 hover:border-gray-300 hover:shadow-md'
+                        : 'opacity-100 scale-100 translate-x-0'
                     }`}
                     style={{
                       animation: removingItems.has(item.id) ? 'slideOut 0.3s ease-in-out' : 'slideIn 0.3s ease-in-out'
                     }}
                   >
                     <div className="flex items-center justify-between mb-3">
-                      <span className="text-sm font-medium text-gray-600">
+                      <span className={`text-sm font-semibold ${
+                        darkMode ? 'text-gray-300' : 'text-slate-700'
+                      }`}>
                         Item #{index + 1}
                       </span>
                       {invoice.lineItems.length > 1 && (
                         <button
                           onClick={() => removeLineItem(item.id)}
                           disabled={removingItems.has(item.id)}
-                          className="text-red-500 hover:text-red-700 transition-all duration-200 transform hover:scale-110 active:scale-95 disabled:opacity-50"
+                          className="text-red-600 hover:text-red-700 transition-all duration-200 transform hover:scale-110 active:scale-95 disabled:opacity-50"
                         >
                           <Trash2 className="w-4 h-4" />
                         </button>
@@ -359,25 +481,33 @@ const InvoiceGenerator = () => {
 
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                       <div className="md:col-span-1">
-                        <label className="block text-xs font-medium text-gray-700 mb-1">
+                        <label className={`block text-xs font-medium mb-1 ${
+                          darkMode ? 'text-gray-400' : 'text-slate-700'
+                        }`}>
                           Description *
                         </label>
                         <input
                           type="text"
                           value={item.description}
                           onChange={(e) => updateLineItem(item.id, 'description', e.target.value)}
-                          className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200 text-sm ${
-                            errors[`${item.id}-description`] ? 'border-red-500' : 'border-gray-300'
+                          className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-slate-500 focus:border-slate-500 transition-all duration-200 text-sm font-medium ${
+                            darkMode 
+                              ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' 
+                              : 'bg-white border-slate-300 text-slate-900 placeholder-slate-400'
+                          } ${
+                            errors[`${item.id}-description`] ? 'border-red-500' : ''
                           }`}
                           placeholder="Item description"
                         />
                         {errors[`${item.id}-description`] && (
-                          <p className="mt-1 text-xs text-red-600 animate-pulse">{errors[`${item.id}-description`]}</p>
+                          <p className="mt-1 text-xs text-red-600 animate-pulse font-medium">{errors[`${item.id}-description`]}</p>
                         )}
                       </div>
 
                       <div>
-                        <label className="block text-xs font-medium text-gray-700 mb-1">
+                        <label className={`block text-xs font-medium mb-1 ${
+                          darkMode ? 'text-gray-400' : 'text-slate-700'
+                        }`}>
                           Quantity *
                         </label>
                         <input
@@ -385,17 +515,23 @@ const InvoiceGenerator = () => {
                           min="1"
                           value={item.quantity}
                           onChange={(e) => updateLineItem(item.id, 'quantity', e.target.value)}
-                          className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200 text-sm ${
-                            errors[`${item.id}-quantity`] ? 'border-red-500' : 'border-gray-300'
+                          className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-slate-500 focus:border-slate-500 transition-all duration-200 text-sm font-medium ${
+                            darkMode 
+                              ? 'bg-gray-700 border-gray-600 text-white' 
+                              : 'bg-white border-slate-300 text-slate-900'
+                          } ${
+                            errors[`${item.id}-quantity`] ? 'border-red-500' : ''
                           }`}
                         />
                         {errors[`${item.id}-quantity`] && (
-                          <p className="mt-1 text-xs text-red-600 animate-pulse">{errors[`${item.id}-quantity`]}</p>
+                          <p className="mt-1 text-xs text-red-600 animate-pulse font-medium">{errors[`${item.id}-quantity`]}</p>
                         )}
                       </div>
 
                       <div>
-                        <label className="block text-xs font-medium text-gray-700 mb-1">
+                        <label className={`block text-xs font-medium mb-1 ${
+                          darkMode ? 'text-gray-400' : 'text-slate-700'
+                        }`}>
                           Rate (₹) *
                         </label>
                         <input
@@ -404,18 +540,24 @@ const InvoiceGenerator = () => {
                           step="0.01"
                           value={item.rate}
                           onChange={(e) => updateLineItem(item.id, 'rate', e.target.value)}
-                          className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200 text-sm ${
-                            errors[`${item.id}-rate`] ? 'border-red-500' : 'border-gray-300'
+                          className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-slate-500 focus:border-slate-500 transition-all duration-200 text-sm font-medium ${
+                            darkMode 
+                              ? 'bg-gray-700 border-gray-600 text-white' 
+                              : 'bg-white border-slate-300 text-slate-900'
+                          } ${
+                            errors[`${item.id}-rate`] ? 'border-red-500' : ''
                           }`}
                         />
                         {errors[`${item.id}-rate`] && (
-                          <p className="mt-1 text-xs text-red-600 animate-pulse">{errors[`${item.id}-rate`]}</p>
+                          <p className="mt-1 text-xs text-red-600 animate-pulse font-medium">{errors[`${item.id}-rate`]}</p>
                         )}
                       </div>
                     </div>
 
                     <div className="mt-3 text-right">
-                      <span className="text-sm font-medium text-gray-600">
+                      <span className={`text-sm font-semibold ${
+                        darkMode ? 'text-gray-300' : 'text-slate-700'
+                      }`}>
                         Total: {formatCurrency((parseFloat(item.quantity) || 0) * (parseFloat(item.rate) || 0))}
                       </span>
                     </div>
@@ -424,38 +566,88 @@ const InvoiceGenerator = () => {
               </div>
             </div>
 
-            {/* Validation Button */}
-            <button
-              onClick={validateForm}
-              className="w-full py-3 px-4 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-all duration-200 transform hover:scale-105 active:scale-95 font-medium"
-            >
-              Validate Invoice
-            </button>
+            {/* Action Buttons */}
+            <div className="flex gap-3">
+              <button
+                onClick={validateForm}
+                className={`flex-1 py-3 px-4 text-white rounded-md transition-all duration-200 transform hover:scale-105 active:scale-95 font-semibold ${
+                  darkMode 
+                    ? 'bg-gray-600 hover:bg-gray-500' 
+                    : 'bg-slate-800 hover:bg-slate-900'
+                }`}
+              >
+                Validate Invoice
+              </button>
+              
+              <button
+                onClick={exportToPDF}
+                disabled={isExporting}
+                className={`flex items-center gap-2 py-3 px-4 text-white rounded-md disabled:cursor-not-allowed transition-all duration-200 transform hover:scale-105 active:scale-95 font-semibold ${
+                  isExporting 
+                    ? 'bg-green-400' 
+                    : darkMode 
+                      ? 'bg-gray-600 hover:bg-gray-500' 
+                      : 'bg-slate-800 hover:bg-slate-900'
+                }`}
+              >
+                {isExporting ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                    Exporting...
+                  </>
+                ) : (
+                  <>
+                    <Download className="w-4 h-4" />
+                    Download PDF
+                  </>
+                )}
+              </button>
+            </div>
 
             {/* Validation Results */}
             {getValidationDisplay()}
           </div>
 
           {/* Preview Panel */}
-          <div className="bg-white rounded-xl shadow-lg p-8 h-fit">
-            <div className="border-2 border-gray-200 rounded-lg p-6 bg-gray-50">
+          <div className={`rounded-lg shadow-sm border p-8 h-fit transition-colors duration-300 ${
+            darkMode 
+              ? 'bg-gray-800 border-gray-700' 
+              : 'bg-white border-slate-200'
+          }`}>
+            <div ref={invoiceRef} className={`border rounded-lg p-8 transition-colors duration-300 ${
+              darkMode 
+                ? 'border-gray-600 bg-gray-700' 
+                : 'border-slate-300 bg-slate-50'
+            }`}>
               {/* Invoice Header */}
               <div className="text-center mb-8">
-                <h1 className="text-3xl font-bold text-gray-800 mb-2">INVOICE</h1>
-                <div className="w-20 h-1 bg-indigo-600 mx-auto rounded"></div>
+                <h1 className={`text-3xl font-bold mb-2 tracking-tight ${
+                  darkMode ? 'text-white' : 'text-slate-800'
+                }`}>INVOICE</h1>
+                <div className={`w-20 h-1 mx-auto rounded ${
+                  darkMode ? 'bg-gray-400' : 'bg-slate-700'
+                }`}></div>
               </div>
 
               {/* Invoice Info */}
               <div className="grid grid-cols-2 gap-8 mb-8">
                 <div>
-                  <h3 className="font-semibold text-gray-700 mb-2">Bill To:</h3>
-                  <p className="text-gray-600">
+                  <h3 className={`font-semibold mb-2 text-sm uppercase tracking-wide ${
+                    darkMode ? 'text-gray-300' : 'text-slate-800'
+                  }`}>Bill To:</h3>
+                  <p className={`font-medium text-lg ${
+                    darkMode ? 'text-gray-200' : 'text-slate-700'
+                  }`}>
                     {invoice.clientName || 'Client Name'}
                   </p>
                 </div>
                 <div className="text-right">
-                  <h3 className="font-semibold text-gray-700 mb-2">Invoice Date:</h3>
-                  <p className="text-gray-600">
+                  <h3 className={`font-semibold mb-2 text-sm uppercase tracking-wide ${
+                    darkMode ? 'text-gray-300' : 'text-slate-800'
+                  }`}>Invoice Date:</h3>
+                  <p className={`font-medium text-lg ${
+                    darkMode ? 'text-gray-200' : 'text-slate-700'
+                  }`}>
                     {formatDate(invoice.invoiceDate)}
                   </p>
                 </div>
@@ -465,27 +657,47 @@ const InvoiceGenerator = () => {
               <div className="mb-8">
                 <table className="w-full">
                   <thead>
-                    <tr className="border-b-2 border-gray-300">
-                      <th className="text-left py-3 font-semibold text-gray-700">Description</th>
-                      <th className="text-center py-3 font-semibold text-gray-700">Qty</th>
-                      <th className="text-right py-3 font-semibold text-gray-700">Rate</th>
-                      <th className="text-right py-3 font-semibold text-gray-700">Amount</th>
+                    <tr className={`border-b-2 ${
+                      darkMode ? 'border-gray-500' : 'border-slate-400'
+                    }`}>
+                      <th className={`text-left py-3 font-semibold text-sm uppercase tracking-wide ${
+                        darkMode ? 'text-gray-200' : 'text-slate-800'
+                      }`}>Description</th>
+                      <th className={`text-center py-3 font-semibold text-sm uppercase tracking-wide ${
+                        darkMode ? 'text-gray-200' : 'text-slate-800'
+                      }`}>Qty</th>
+                      <th className={`text-right py-3 font-semibold text-sm uppercase tracking-wide ${
+                        darkMode ? 'text-gray-200' : 'text-slate-800'
+                      }`}>Rate</th>
+                      <th className={`text-right py-3 font-semibold text-sm uppercase tracking-wide ${
+                        darkMode ? 'text-gray-200' : 'text-slate-800'
+                      }`}>Amount</th>
                     </tr>
                   </thead>
                   <tbody>
                     {invoice.lineItems.filter(item => !removingItems.has(item.id)).map((item, index) => (
-                      <tr key={item.id} className="border-b border-gray-200">
-                        <td className="py-3 text-gray-600">
+                      <tr key={item.id} className={`border-b ${
+                        darkMode ? 'border-gray-600' : 'border-slate-200'
+                      }`}>
+                        <td className={`py-3 font-medium ${
+                          darkMode ? 'text-gray-200' : 'text-slate-700'
+                        }`}>
                           {item.description || `Item ${index + 1}`}
                         </td>
-                        <td className="py-3 text-center text-gray-600">
+                        <td className={`py-3 text-center font-medium ${
+                          darkMode ? 'text-gray-200' : 'text-slate-700'
+                        }`}>
                           {item.quantity || 0}
                         </td>
-                        <td className="py-3 text-right text-gray-600">
+                        <td className={`py-3 text-right font-medium ${
+                          darkMode ? 'text-gray-200' : 'text-slate-700'
+                        }`}>
                           {formatCurrency(parseFloat(item.rate) || 0)}
                         </td>
-                        <td className="py-3 text-right text-gray-600">
-                          {formatCurrency((parseFloat(item.quantity) || 0) * (parseFloat(item.rate) || 0))}
+                        <td className={`py-3 text-right font-semibold ${
+                          darkMode ? 'text-gray-200' : 'text-slate-700'
+                        }`}>
+                         {formatCurrency((parseFloat(item.quantity) || 0) * (parseFloat(item.rate) || 0))}
                         </td>
                       </tr>
                     ))}
@@ -494,41 +706,77 @@ const InvoiceGenerator = () => {
               </div>
 
               {/* Totals */}
-              <div className="border-t-2 border-gray-300 pt-4">
-                <div className="space-y-2">
-                  <div className="flex justify-between">
-                    <span className="text-gray-600">Subtotal:</span>
-                    <span className="text-gray-600">{formatCurrency(subtotal)}</span>
+              <div className="flex justify-end">
+                <div className="w-64">
+                  <div className={`flex justify-between py-2 border-b ${
+                    darkMode ? 'border-gray-600' : 'border-slate-200'
+                  }`}>
+                    <span className={`font-medium ${
+                      darkMode ? 'text-gray-300' : 'text-slate-700'
+                    }`}>Subtotal:</span>
+                    <span className={`font-semibold ${
+                      darkMode ? 'text-gray-200' : 'text-slate-800'
+                    }`}>{formatCurrency(subtotal)}</span>
                   </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-600">GST (18%):</span>
-                    <span className="text-gray-600">{formatCurrency(gstAmount)}</span>
+                  <div className={`flex justify-between py-2 border-b ${
+                    darkMode ? 'border-gray-600' : 'border-slate-200'
+                  }`}>
+                    <span className={`font-medium ${
+                      darkMode ? 'text-gray-300' : 'text-slate-700'
+                    }`}>GST (18%):</span>
+                    <span className={`font-semibold ${
+                      darkMode ? 'text-gray-200' : 'text-slate-800'
+                    }`}>{formatCurrency(gstAmount)}</span>
                   </div>
-                  <div className="flex justify-between border-t border-gray-300 pt-2">
-                    <span className="font-bold text-gray-800 text-lg">Total:</span>
-                    <span className="font-bold text-gray-800 text-lg">{formatCurrency(total)}</span>
+                  <div className={`flex justify-between py-3 border-b-2 ${
+                    darkMode ? 'border-gray-500' : 'border-slate-400'
+                  }`}>
+                    <span className={`font-bold text-lg ${
+                      darkMode ? 'text-gray-200' : 'text-slate-800'
+                    }`}>Total:</span>
+                    <span className={`font-bold text-lg ${
+                      darkMode ? 'text-gray-100' : 'text-slate-900'
+                    }`}>{formatCurrency(total)}</span>
                   </div>
                 </div>
               </div>
-            </div>
 
-            {/* Preview Footer */}
-            <div className="mt-6 text-center text-sm text-gray-500">
-              This is a live preview of your invoice
+              {/* Footer */}
+              <div className="mt-12 pt-6 text-center border-t border-dashed border-slate-300">
+                <p className={`text-sm ${
+                  darkMode ? 'text-gray-400' : 'text-slate-600'
+                }`}>
+                  Thank you for your business!
+                </p>
+              </div>
             </div>
           </div>
         </div>
       </div>
-      
+
+      {/* Custom CSS for animations */}
       <style jsx>{`
+        .shake {
+          animation: shake 0.5s ease-in-out;
+        }
+        
+        @keyframes shake {
+          0%, 20%, 40%, 60%, 80%, 100% {
+            transform: translateX(0);
+          }
+          10%, 30%, 50%, 70%, 90% {
+            transform: translateX(-2px);
+          }
+        }
+        
         @keyframes slideIn {
           from {
             opacity: 0;
-            transform: translateY(-10px) scale(0.95);
+            transform: translateX(-20px) scale(0.95);
           }
           to {
             opacity: 1;
-            transform: translateY(0) scale(1);
+            transform: translateX(0) scale(1);
           }
         }
         
@@ -543,14 +791,8 @@ const InvoiceGenerator = () => {
           }
         }
         
-        .shake {
-          animation: shake 0.5s ease-in-out;
-        }
-        
-        @keyframes shake {
-          0%, 100% { transform: translateX(0); }
-          25% { transform: translateX(-4px); }
-          75% { transform: translateX(4px); }
+        .bg-gray-750 {
+          background-color: #374151;
         }
       `}</style>
     </div>
