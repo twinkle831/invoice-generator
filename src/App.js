@@ -1,12 +1,27 @@
 import React, { useState, useRef } from 'react';
-import { Plus, Trash2, FileText, Calendar, User, CheckCircle, AlertCircle, XCircle, Download, Moon, Sun, Palette } from 'lucide-react';
+import { Plus, Trash2, FileText, Calendar, User, CheckCircle, AlertCircle, XCircle, Download, Moon, Sun, Palette, Mail, Phone, MapPin, Building, CreditCard } from 'lucide-react';
 
 const InvoiceGenerator = () => {
   const [darkMode, setDarkMode] = useState(false);
   const [selectedTemplate, setSelectedTemplate] = useState('professional');
   const [invoice, setInvoice] = useState({
-    clientName: '',
+    // Invoice Details
+    invoiceNumber: '',
     invoiceDate: new Date().toISOString().split('T')[0],
+    dueDate: '',
+    
+    // Client Details
+    clientName: '',
+    clientEmail: '',
+    clientPhone: '',
+    clientAddress: '',
+    
+    // Vendor Details
+    vendorName: '',
+    vendorEmail: '',
+    vendorPhone: '',
+    vendorAddress: '',
+    
     lineItems: [
       { id: 1, description: '', quantity: 1, rate: 0 }
     ]
@@ -38,6 +53,18 @@ const InvoiceGenerator = () => {
     setDarkMode(!darkMode);
   };
 
+  // Email validation helper
+  const isValidEmail = (email) => {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return emailRegex.test(email);
+  };
+
+  // Phone validation helper
+  const isValidPhone = (phone) => {
+    const phoneRegex = /^[\+]?[1-9][\d]{3,14}$/;
+    return phoneRegex.test(phone.replace(/[\s\-\(\)]/g, ''));
+  };
+
   // Calculate totals
   const subtotal = invoice.lineItems.reduce((sum, item) => {
     const itemTotal = (parseFloat(item.quantity) || 0) * (parseFloat(item.rate) || 0);
@@ -60,7 +87,6 @@ const InvoiceGenerator = () => {
       lineItems: [...prev.lineItems, newItem]
     }));
     
-    // Clear validation status when adding items
     if (validationStatus) {
       setValidationStatus(null);
     }
@@ -69,10 +95,8 @@ const InvoiceGenerator = () => {
   // Remove line item with animation
   const removeLineItem = (id) => {
     if (invoice.lineItems.length > 1) {
-      // Add item to removing set for animation
       setRemovingItems(prev => new Set([...prev, id]));
       
-      // Remove after animation completes
       setTimeout(() => {
         setInvoice(prev => ({
           ...prev,
@@ -84,7 +108,6 @@ const InvoiceGenerator = () => {
           return newSet;
         });
         
-        // Clear validation status when removing items
         if (validationStatus) {
           setValidationStatus(null);
         }
@@ -101,7 +124,6 @@ const InvoiceGenerator = () => {
       )
     }));
 
-    // Clear errors when user starts typing
     if (errors[`${id}-${field}`]) {
       setErrors(prev => ({
         ...prev,
@@ -109,7 +131,6 @@ const InvoiceGenerator = () => {
       }));
     }
     
-    // Clear validation status when editing
     if (validationStatus) {
       setValidationStatus(null);
     }
@@ -119,12 +140,10 @@ const InvoiceGenerator = () => {
   const updateInvoice = (field, value) => {
     setInvoice(prev => ({ ...prev, [field]: value }));
     
-    // Clear errors when user starts typing
     if (errors[field]) {
       setErrors(prev => ({ ...prev, [field]: null }));
     }
     
-    // Clear validation status when editing
     if (validationStatus) {
       setValidationStatus(null);
     }
@@ -135,11 +154,41 @@ const InvoiceGenerator = () => {
     const newErrors = {};
     const warnings = [];
 
+    // Invoice details validation
+    if (!invoice.invoiceNumber.trim()) {
+      newErrors.invoiceNumber = 'Invoice number is required';
+    }
+
     // Client name validation
     if (!invoice.clientName.trim()) {
       newErrors.clientName = 'Client name is required';
     } else if (invoice.clientName.trim().length < 2) {
       warnings.push('Client name seems very short');
+    }
+
+    // Client email validation (optional but validate if provided)
+    if (invoice.clientEmail.trim() && !isValidEmail(invoice.clientEmail.trim())) {
+      newErrors.clientEmail = 'Please enter a valid client email address';
+    }
+
+    // Client phone validation (optional but validate if provided)
+    if (invoice.clientPhone.trim() && !isValidPhone(invoice.clientPhone.trim())) {
+      newErrors.clientPhone = 'Please enter a valid client phone number';
+    }
+
+    // Vendor name validation
+    if (!invoice.vendorName.trim()) {
+      newErrors.vendorName = 'Vendor name is required';
+    }
+
+    // Vendor email validation (optional but validate if provided)
+    if (invoice.vendorEmail.trim() && !isValidEmail(invoice.vendorEmail.trim())) {
+      newErrors.vendorEmail = 'Please enter a valid vendor email address';
+    }
+
+    // Vendor phone validation (optional but validate if provided)
+    if (invoice.vendorPhone.trim() && !isValidPhone(invoice.vendorPhone.trim())) {
+      newErrors.vendorPhone = 'Please enter a valid vendor phone number';
     }
 
     // Date validation
@@ -150,6 +199,14 @@ const InvoiceGenerator = () => {
     
     if (invoiceDate > futureLimit) {
       warnings.push('Invoice date is more than a year in the future');
+    }
+
+    // Due date validation
+    if (invoice.dueDate) {
+      const dueDate = new Date(invoice.dueDate);
+      if (dueDate < invoiceDate) {
+        newErrors.dueDate = 'Due date cannot be before invoice date';
+      }
     }
 
     // Line items validation
@@ -181,7 +238,6 @@ const InvoiceGenerator = () => {
         warnings.push(`Item ${index + 1}: Very high rate (${formatCurrency(rate)})`);
       }
       
-      // Check if item contributes to total
       if (item.description.trim() && quantity > 0 && rate >= 0) {
         hasValidItems = true;
       }
@@ -198,7 +254,6 @@ const InvoiceGenerator = () => {
       warnings.push(`High number of line items (${totalItems})`);
     }
 
-    // Set validation status
     setErrors(newErrors);
     
     if (Object.keys(newErrors).length === 0) {
@@ -207,7 +262,9 @@ const InvoiceGenerator = () => {
           type: 'success',
           message: 'Invoice is valid and ready to use!',
           details: [
+            `Invoice #: ${invoice.invoiceNumber}`,
             `Client: ${invoice.clientName}`,
+            `Vendor: ${invoice.vendorName}`,
             `Items: ${totalItems}`,
             `Total: ${formatCurrency(total)}`
           ]
@@ -261,7 +318,6 @@ const InvoiceGenerator = () => {
 
       const element = invoiceRef.current;
       
-      // Generate canvas from the invoice preview
       const canvas = await window.html2canvas(element, {
         scale: 2,
         useCORS: true,
@@ -273,7 +329,6 @@ const InvoiceGenerator = () => {
 
       const imgData = canvas.toDataURL('image/png');
       
-      // Create PDF
       const pdf = new window.jspdf.jsPDF({
         orientation: 'portrait',
         unit: 'px',
@@ -282,10 +337,10 @@ const InvoiceGenerator = () => {
 
       pdf.addImage(imgData, 'PNG', 0, 0, canvas.width / 2, canvas.height / 2);
       
-      // Generate filename
       const clientName = invoice.clientName.trim() || 'Client';
+      const invoiceNum = invoice.invoiceNumber.trim() || 'INV';
       const date = new Date(invoice.invoiceDate).toISOString().split('T')[0];
-      const filename = `Invoice_${clientName.replace(/[^a-zA-Z0-9]/g, '_')}_${date}_${selectedTemplate}.pdf`;
+      const filename = `Invoice_${invoiceNum}_${clientName.replace(/[^a-zA-Z0-9]/g, '_')}_${date}.pdf`;
       
       pdf.save(filename);
     } catch (error) {
@@ -358,6 +413,46 @@ const InvoiceGenerator = () => {
     );
   };
 
+  // Render client details for preview
+  const renderClientDetails = () => {
+    const clientInfo = [];
+    
+    if (invoice.clientName.trim()) {
+      clientInfo.push(invoice.clientName.trim());
+    }
+    if (invoice.clientEmail.trim()) {
+      clientInfo.push(invoice.clientEmail.trim());
+    }
+    if (invoice.clientPhone.trim()) {
+      clientInfo.push(invoice.clientPhone.trim());
+    }
+    if (invoice.clientAddress.trim()) {
+      clientInfo.push(...invoice.clientAddress.trim().split('\n').filter(line => line.trim()));
+    }
+
+    return clientInfo;
+  };
+
+  // Render vendor details for preview
+  const renderVendorDetails = () => {
+    const vendorInfo = [];
+    
+    if (invoice.vendorName.trim()) {
+      vendorInfo.push(invoice.vendorName.trim());
+    }
+    if (invoice.vendorEmail.trim()) {
+      vendorInfo.push(invoice.vendorEmail.trim());
+    }
+    if (invoice.vendorPhone.trim()) {
+      vendorInfo.push(invoice.vendorPhone.trim());
+    }
+    if (invoice.vendorAddress.trim()) {
+      vendorInfo.push(...invoice.vendorAddress.trim().split('\n').filter(line => line.trim()));
+    }
+
+    return vendorInfo;
+  };
+
   // Render template-specific preview
   const renderInvoicePreview = () => {
     const baseClasses = {
@@ -372,6 +467,9 @@ const InvoiceGenerator = () => {
       accent: darkMode ? 'bg-gray-400' : 'bg-slate-700'
     };
 
+    const clientDetails = renderClientDetails();
+    const vendorDetails = renderVendorDetails();
+
     switch (selectedTemplate) {
       case 'minimal':
         return (
@@ -381,25 +479,69 @@ const InvoiceGenerator = () => {
               <h1 className={`text-2xl font-light tracking-widest uppercase ${baseClasses.header}`}>
                 Invoice
               </h1>
+              {invoice.invoiceNumber && (
+                <p className={`text-sm font-light mt-2 ${baseClasses.text}`}>
+                  #{invoice.invoiceNumber}
+                </p>
+              )}
             </div>
 
-            {/* Minimal Info */}
+            {/* Vendor and Client Info */}
             <div className="grid grid-cols-2 gap-8 mb-12">
               <div>
                 <p className={`text-xs uppercase tracking-wider mb-2 ${baseClasses.subheader}`}>
+                  From
+                </p>
+                <div className="space-y-1 mb-6">
+                  {vendorDetails.length > 0 ? (
+                    vendorDetails.map((detail, index) => (
+                      <p key={index} className={`${index === 0 ? 'text-lg font-light' : 'text-sm font-light'} ${baseClasses.text}`}>
+                        {detail}
+                      </p>
+                    ))
+                  ) : (
+                    <p className={`text-lg font-light ${baseClasses.text}`}>
+                      Vendor Name
+                    </p>
+                  )}
+                </div>
+                
+                <p className={`text-xs uppercase tracking-wider mb-2 ${baseClasses.subheader}`}>
                   To
                 </p>
-                <p className={`text-xl font-light ${baseClasses.text}`}>
-                  {invoice.clientName || 'Client Name'}
-                </p>
+                <div className="space-y-1">
+                  {clientDetails.length > 0 ? (
+                    clientDetails.map((detail, index) => (
+                      <p key={index} className={`${index === 0 ? 'text-lg font-light' : 'text-sm font-light'} ${baseClasses.text}`}>
+                        {detail}
+                      </p>
+                    ))
+                  ) : (
+                    <p className={`text-lg font-light ${baseClasses.text}`}>
+                      Client Name
+                    </p>
+                  )}
+                </div>
               </div>
+              
               <div className="text-right">
                 <p className={`text-xs uppercase tracking-wider mb-2 ${baseClasses.subheader}`}>
                   Date
                 </p>
-                <p className={`text-xl font-light ${baseClasses.text}`}>
+                <p className={`text-lg font-light mb-4 ${baseClasses.text}`}>
                   {formatDate(invoice.invoiceDate)}
                 </p>
+                
+                {invoice.dueDate && (
+                  <>
+                    <p className={`text-xs uppercase tracking-wider mb-2 ${baseClasses.subheader}`}>
+                      Due Date
+                    </p>
+                    <p className={`text-lg font-light ${baseClasses.text}`}>
+                      {formatDate(invoice.dueDate)}
+                    </p>
+                  </>
+                )}
               </div>
             </div>
 
@@ -475,22 +617,38 @@ const InvoiceGenerator = () => {
               }`}>
                 <h1 className="text-2xl font-bold text-white tracking-tight">INVOICE</h1>
               </div>
+              {invoice.invoiceNumber && (
+                <p className={`text-lg font-semibold ${baseClasses.header}`}>
+                  #{invoice.invoiceNumber}
+                </p>
+              )}
             </div>
 
             {/* Modern Info Cards */}
-            <div className="grid grid-cols-2 gap-6 mb-10">
+            <div className="grid grid-cols-2 gap-6 mb-6">
               <div className={`p-6 rounded-lg ${
                 darkMode ? 'bg-gray-600 bg-opacity-50' : 'bg-white shadow-sm border border-slate-100'
               }`}>
                 <h3 className={`text-sm font-semibold mb-3 uppercase tracking-wide ${
                   darkMode ? 'text-blue-400' : 'text-blue-600'
                 }`}>
-                  Bill To
+                  From
                 </h3>
-                <p className={`text-lg font-semibold ${baseClasses.header}`}>
-                  {invoice.clientName || 'Client Name'}
-                </p>
+                <div className="space-y-1">
+                  {vendorDetails.length > 0 ? (
+                    vendorDetails.map((detail, index) => (
+                      <p key={index} className={`${index === 0 ? 'text-lg font-semibold' : 'text-sm font-medium'} ${baseClasses.text}`}>
+                        {detail}
+                      </p>
+                    ))
+                  ) : (
+                    <p className={`text-lg font-semibold ${baseClasses.header}`}>
+                      Vendor Name
+                    </p>
+                  )}
+                </div>
               </div>
+              
               <div className={`p-6 rounded-lg ${
                 darkMode ? 'bg-gray-600 bg-opacity-50' : 'bg-white shadow-sm border border-slate-100'
               }`}>
@@ -502,6 +660,43 @@ const InvoiceGenerator = () => {
                 <p className={`text-lg font-semibold ${baseClasses.header}`}>
                   {formatDate(invoice.invoiceDate)}
                 </p>
+                {invoice.dueDate && (
+                  <>
+                    <h3 className={`text-sm font-semibold mt-4 mb-2 uppercase tracking-wide ${
+                      darkMode ? 'text-blue-400' : 'text-blue-600'
+                    }`}>
+                      Due Date
+                    </h3>
+                    <p className={`text-lg font-semibold ${baseClasses.header}`}>
+                      {formatDate(invoice.dueDate)}
+                    </p>
+                  </>
+                )}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 gap-6 mb-10">
+              <div className={`p-6 rounded-lg ${
+                darkMode ? 'bg-gray-600 bg-opacity-50' : 'bg-white shadow-sm border border-slate-100'
+              }`}>
+                <h3 className={`text-sm font-semibold mb-3 uppercase tracking-wide ${
+                  darkMode ? 'text-blue-400' : 'text-blue-600'
+                }`}>
+                  Bill To
+                </h3>
+                <div className="space-y-1">
+                  {clientDetails.length > 0 ? (
+                    clientDetails.map((detail, index) => (
+                      <p key={index} className={`${index === 0 ? 'text-lg font-semibold' : 'text-sm font-medium'} ${baseClasses.text}`}>
+                        {detail}
+                      </p>
+                    ))
+                  ) : (
+                    <p className={`text-lg font-semibold ${baseClasses.header}`}>
+                      Client Name
+                    </p>
+                  )}
+                </div>
               </div>
             </div>
 
@@ -593,25 +788,69 @@ const InvoiceGenerator = () => {
             <div className="text-center mb-8">
               <h1 className={`text-3xl font-bold mb-2 tracking-tight ${baseClasses.header}`}>INVOICE</h1>
               <div className={`w-20 h-1 mx-auto rounded ${baseClasses.accent}`}></div>
+              {invoice.invoiceNumber && (
+                <p className={`text-lg font-semibold mt-3 ${baseClasses.text}`}>
+                  Invoice #{invoice.invoiceNumber}
+                </p>
+              )}
             </div>
 
             {/* Professional Info */}
             <div className="grid grid-cols-2 gap-8 mb-8">
               <div>
                 <h3 className={`font-semibold mb-2 text-sm uppercase tracking-wide ${baseClasses.subheader}`}>
+                  From:
+                </h3>
+                <div className="space-y-1 mb-6">
+                  {vendorDetails.length > 0 ? (
+                    vendorDetails.map((detail, index) => (
+                      <p key={index} className={`${index === 0 ? 'font-medium text-lg' : 'text-sm'} ${baseClasses.text}`}>
+                        {detail}
+                      </p>
+                    ))
+                  ) : (
+                    <p className={`font-medium text-lg ${baseClasses.text}`}>
+                      Vendor Name
+                    </p>
+                  )}
+                </div>
+                
+                <h3 className={`font-semibold mb-2 text-sm uppercase tracking-wide ${baseClasses.subheader}`}>
                   Bill To:
                 </h3>
-                <p className={`font-medium text-lg ${baseClasses.text}`}>
-                  {invoice.clientName || 'Client Name'}
-                </p>
+                <div className="space-y-1">
+                  {clientDetails.length > 0 ? (
+                    clientDetails.map((detail, index) => (
+                      <p key={index} className={`${index === 0 ? 'font-medium text-lg' : 'text-sm'} ${baseClasses.text}`}>
+                        {detail}
+                      </p>
+                    ))
+                  ) : (
+                    <p className={`font-medium text-lg ${baseClasses.text}`}>
+                      Client Name
+                    </p>
+                  )}
+                </div>
               </div>
+              
               <div className="text-right">
                 <h3 className={`font-semibold mb-2 text-sm uppercase tracking-wide ${baseClasses.subheader}`}>
                   Invoice Date:
                 </h3>
-                <p className={`font-medium text-lg ${baseClasses.text}`}>
+                <p className={`font-medium text-lg mb-4 ${baseClasses.text}`}>
                   {formatDate(invoice.invoiceDate)}
                 </p>
+                
+                {invoice.dueDate && (
+                  <>
+                    <h3 className={`font-semibold mb-2 text-sm uppercase tracking-wide ${baseClasses.subheader}`}>
+                      Due Date:
+                    </h3>
+                    <p className={`font-medium text-lg ${baseClasses.text}`}>
+                      {formatDate(invoice.dueDate)}
+                    </p>
+                  </>
+                )}
               </div>
             </div>
 
@@ -716,21 +955,15 @@ const InvoiceGenerator = () => {
               ? 'bg-gray-800 border-gray-700' 
               : 'bg-white border-slate-200'
           }`}>
-            <h2 className={`text-xl font-semibold mb-6 flex items-center gap-2 tracking-tight ${
-              darkMode ? 'text-white' : 'text-slate-800'
-            }`}>
-              <User className={`w-5 h-5 ${darkMode ? 'text-gray-400' : 'text-slate-600'}`} />
-              Invoice Details
-            </h2>
-
+            
             {/* Template Selector */}
-            <div className="mb-6">
-              <label className={`block text-sm font-medium mb-3 flex items-center gap-2 ${
-                darkMode ? 'text-gray-300' : 'text-slate-700'
+            <div className="mb-8">
+              <h2 className={`text-xl font-semibold mb-4 flex items-center gap-2 tracking-tight ${
+                darkMode ? 'text-white' : 'text-slate-800'
               }`}>
-                <Palette className={`w-4 h-4 ${darkMode ? 'text-gray-400' : 'text-slate-600'}`} />
-                Invoice Template
-              </label>
+                <Palette className={`w-5 h-5 ${darkMode ? 'text-gray-400' : 'text-slate-600'}`} />
+                Template
+              </h2>
               <div className="grid grid-cols-3 gap-2">
                 {Object.entries(templates).map(([key, template]) => (
                   <button
@@ -763,49 +996,300 @@ const InvoiceGenerator = () => {
               </div>
             </div>
 
-            {/* Client Info */}
-            <div className="space-y-4 mb-8">
-              <div>
-                <label className={`block text-sm font-medium mb-2 ${
-                  darkMode ? 'text-gray-300' : 'text-slate-700'
-                }`}>
-                  Client Name *
-                </label>
-                <input
-                  type="text"
-                  value={invoice.clientName}
-                  onChange={(e) => updateInvoice('clientName', e.target.value)}
-                  className={`w-full px-4 py-3 border rounded-md focus:ring-2 focus:ring-slate-500 focus:border-slate-500 transition-all duration-200 font-medium ${
-                    darkMode 
-                      ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400 focus:bg-gray-600' 
-                      : 'bg-white border-slate-300 text-slate-900 placeholder-slate-400'
-                  } ${
-                    errors.clientName ? 'border-red-500 shake' : ''
-                  }`}
-                  placeholder="Enter client name"
-                />
-                {errors.clientName && (
-                  <p className="mt-1 text-sm text-red-600 animate-pulse font-medium">{errors.clientName}</p>
-                )}
-              </div>
+            {/* Invoice Details Section */}
+            <div className="mb-8">
+              <h2 className={`text-xl font-semibold mb-4 flex items-center gap-2 tracking-tight ${
+                darkMode ? 'text-white' : 'text-slate-800'
+              }`}>
+                <CreditCard className={`w-5 h-5 ${darkMode ? 'text-gray-400' : 'text-slate-600'}`} />
+                Invoice Details
+              </h2>
+              
+              <div className="space-y-4">
+                <div>
+                  <label className={`block text-sm font-medium mb-2 ${
+                    darkMode ? 'text-gray-300' : 'text-slate-700'
+                  }`}>
+                    Invoice Number *
+                  </label>
+                  <input
+                    type="text"
+                    value={invoice.invoiceNumber}
+                    onChange={(e) => updateInvoice('invoiceNumber', e.target.value)}
+                    className={`w-full px-4 py-3 border rounded-md focus:ring-2 focus:ring-slate-500 focus:border-slate-500 transition-all duration-200 font-medium ${
+                      darkMode 
+                        ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400 focus:bg-gray-600' 
+                        : 'bg-white border-slate-300 text-slate-900 placeholder-slate-400'
+                    } ${
+                      errors.invoiceNumber ? 'border-red-500 shake' : ''
+                    }`}
+                    placeholder="INV-001"
+                  />
+                  {errors.invoiceNumber && (
+                    <p className="mt-1 text-sm text-red-600 animate-pulse font-medium">{errors.invoiceNumber}</p>
+                  )}
+                </div>
 
-              <div>
-                <label className={`block text-sm font-medium mb-2 flex items-center gap-2 ${
-                  darkMode ? 'text-gray-300' : 'text-slate-700'
-                }`}>
-                  <Calendar className={`w-4 h-4 ${darkMode ? 'text-gray-400' : 'text-slate-600'}`} />
-                  Invoice Date
-                </label>
-                <input
-                  type="date"
-                  value={invoice.invoiceDate}
-                  onChange={(e) => updateInvoice('invoiceDate', e.target.value)}
-                  className={`w-full px-4 py-3 border rounded-md focus:ring-2 focus:ring-slate-500 focus:border-slate-500 transition-colors font-medium ${
-                    darkMode 
-                      ? 'bg-gray-700 border-gray-600 text-white' 
-                      : 'bg-white border-slate-300 text-slate-900'
-                  }`}
-                />
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className={`block text-sm font-medium mb-2 flex items-center gap-2 ${
+                      darkMode ? 'text-gray-300' : 'text-slate-700'
+                    }`}>
+                      <Calendar className={`w-4 h-4 ${darkMode ? 'text-gray-400' : 'text-slate-600'}`} />
+                      Invoice Date
+                    </label>
+                    <input
+                      type="date"
+                      value={invoice.invoiceDate}
+                      onChange={(e) => updateInvoice('invoiceDate', e.target.value)}
+                      className={`w-full px-4 py-3 border rounded-md focus:ring-2 focus:ring-slate-500 focus:border-slate-500 transition-colors font-medium ${
+                        darkMode 
+                          ? 'bg-gray-700 border-gray-600 text-white' 
+                          : 'bg-white border-slate-300 text-slate-900'
+                      }`}
+                    />
+                  </div>
+
+                  <div>
+                    <label className={`block text-sm font-medium mb-2 flex items-center gap-2 ${
+                      darkMode ? 'text-gray-300' : 'text-slate-700'
+                    }`}>
+                      <Calendar className={`w-4 h-4 ${darkMode ? 'text-gray-400' : 'text-slate-600'}`} />
+                      Due Date
+                    </label>
+                    <input
+                      type="date"
+                      value={invoice.dueDate}
+                      onChange={(e) => updateInvoice('dueDate', e.target.value)}
+                      className={`w-full px-4 py-3 border rounded-md focus:ring-2 focus:ring-slate-500 focus:border-slate-500 transition-colors font-medium ${
+                        darkMode 
+                          ? 'bg-gray-700 border-gray-600 text-white' 
+                          : 'bg-white border-slate-300 text-slate-900'
+                      } ${
+                        errors.dueDate ? 'border-red-500 shake' : ''
+                      }`}
+                    />
+                    {errors.dueDate && (
+                      <p className="mt-1 text-sm text-red-600 animate-pulse font-medium">{errors.dueDate}</p>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Vendor Details Section */}
+            <div className="mb-8">
+              <h2 className={`text-xl font-semibold mb-4 flex items-center gap-2 tracking-tight ${
+                darkMode ? 'text-white' : 'text-slate-800'
+              }`}>
+                <Building className={`w-5 h-5 ${darkMode ? 'text-gray-400' : 'text-slate-600'}`} />
+                Vendor Details
+              </h2>
+              
+              <div className="space-y-4">
+                <div>
+                  <label className={`block text-sm font-medium mb-2 ${
+                    darkMode ? 'text-gray-300' : 'text-slate-700'
+                  }`}>
+                    Vendor Name *
+                  </label>
+                  <input
+                    type="text"
+                    value={invoice.vendorName}
+                    onChange={(e) => updateInvoice('vendorName', e.target.value)}
+                    className={`w-full px-4 py-3 border rounded-md focus:ring-2 focus:ring-slate-500 focus:border-slate-500 transition-all duration-200 font-medium ${
+                      darkMode 
+                        ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400 focus:bg-gray-600' 
+                        : 'bg-white border-slate-300 text-slate-900 placeholder-slate-400'
+                    } ${
+                      errors.vendorName ? 'border-red-500 shake' : ''
+                    }`}
+                    placeholder="Your Company Name"
+                  />
+                  {errors.vendorName && (
+                    <p className="mt-1 text-sm text-red-600 animate-pulse font-medium">{errors.vendorName}</p>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className={`block text-sm font-medium mb-2 flex items-center gap-2 ${
+                      darkMode ? 'text-gray-300' : 'text-slate-700'
+                    }`}>
+                      <Mail className={`w-4 h-4 ${darkMode ? 'text-gray-400' : 'text-slate-600'}`} />
+                      Vendor Email
+                    </label>
+                    <input
+                      type="email"
+                      value={invoice.vendorEmail}
+                      onChange={(e) => updateInvoice('vendorEmail', e.target.value)}
+                      className={`w-full px-4 py-3 border rounded-md focus:ring-2 focus:ring-slate-500 focus:border-slate-500 transition-all duration-200 font-medium ${
+                        darkMode 
+                          ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400 focus:bg-gray-600' 
+                          : 'bg-white border-slate-300 text-slate-900 placeholder-slate-400'
+                      } ${
+                        errors.vendorEmail ? 'border-red-500 shake' : ''
+                      }`}
+                      placeholder="vendor@company.com (optional)"
+                    />
+                    {errors.vendorEmail && (
+                      <p className="mt-1 text-sm text-red-600 animate-pulse font-medium">{errors.vendorEmail}</p>
+                    )}
+                  </div>
+
+                  <div>
+                    <label className={`block text-sm font-medium mb-2 flex items-center gap-2 ${
+                      darkMode ? 'text-gray-300' : 'text-slate-700'
+                    }`}>
+                      <Phone className={`w-4 h-4 ${darkMode ? 'text-gray-400' : 'text-slate-600'}`} />
+                      Vendor Phone
+                    </label>
+                    <input
+                      type="tel"
+                      value={invoice.vendorPhone}
+                      onChange={(e) => updateInvoice('vendorPhone', e.target.value)}
+                      className={`w-full px-4 py-3 border rounded-md focus:ring-2 focus:ring-slate-500 focus:border-slate-500 transition-all duration-200 font-medium ${
+                        darkMode 
+                          ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400 focus:bg-gray-600' 
+                          : 'bg-white border-slate-300 text-slate-900 placeholder-slate-400'
+                      } ${
+                        errors.vendorPhone ? 'border-red-500 shake' : ''
+                      }`}
+                      placeholder="+1 234 567 8900 (optional)"
+                    />
+                    {errors.vendorPhone && (
+                      <p className="mt-1 text-sm text-red-600 animate-pulse font-medium">{errors.vendorPhone}</p>
+                    )}
+                  </div>
+                </div>
+
+                <div>
+                  <label className={`block text-sm font-medium mb-2 flex items-center gap-2 ${
+                    darkMode ? 'text-gray-300' : 'text-slate-700'
+                  }`}>
+                    <MapPin className={`w-4 h-4 ${darkMode ? 'text-gray-400' : 'text-slate-600'}`} />
+                    Vendor Address
+                  </label>
+                  <textarea
+                    value={invoice.vendorAddress}
+                    onChange={(e) => updateInvoice('vendorAddress', e.target.value)}
+                    rows={3}
+                    className={`w-full px-4 py-3 border rounded-md focus:ring-2 focus:ring-slate-500 focus:border-slate-500 transition-all duration-200 font-medium resize-vertical ${
+                      darkMode 
+                        ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400 focus:bg-gray-600' 
+                        : 'bg-white border-slate-300 text-slate-900 placeholder-slate-400'
+                    }`}
+                    placeholder="456 Business Ave&#10;Suite 100&#10;City, State 12345 (optional)"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Client Details Section */}
+            <div className="mb-8">
+              <h2 className={`text-xl font-semibold mb-4 flex items-center gap-2 tracking-tight ${
+                darkMode ? 'text-white' : 'text-slate-800'
+              }`}>
+                <User className={`w-5 h-5 ${darkMode ? 'text-gray-400' : 'text-slate-600'}`} />
+                Client Details
+              </h2>
+              
+              <div className="space-y-4">
+                <div>
+                  <label className={`block text-sm font-medium mb-2 ${
+                    darkMode ? 'text-gray-300' : 'text-slate-700'
+                  }`}>
+                    Client Name *
+                  </label>
+                  <input
+                    type="text"
+                    value={invoice.clientName}
+                    onChange={(e) => updateInvoice('clientName', e.target.value)}
+                    className={`w-full px-4 py-3 border rounded-md focus:ring-2 focus:ring-slate-500 focus:border-slate-500 transition-all duration-200 font-medium ${
+                      darkMode 
+                        ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400 focus:bg-gray-600' 
+                        : 'bg-white border-slate-300 text-slate-900 placeholder-slate-400'
+                    } ${
+                      errors.clientName ? 'border-red-500 shake' : ''
+                    }`}
+                    placeholder="Client Company Name"
+                  />
+                  {errors.clientName && (
+                    <p className="mt-1 text-sm text-red-600 animate-pulse font-medium">{errors.clientName}</p>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className={`block text-sm font-medium mb-2 flex items-center gap-2 ${
+                      darkMode ? 'text-gray-300' : 'text-slate-700'
+                    }`}>
+                      <Mail className={`w-4 h-4 ${darkMode ? 'text-gray-400' : 'text-slate-600'}`} />
+                      Client Email
+                    </label>
+                    <input
+                      type="email"
+                      value={invoice.clientEmail}
+                      onChange={(e) => updateInvoice('clientEmail', e.target.value)}
+                      className={`w-full px-4 py-3 border rounded-md focus:ring-2 focus:ring-slate-500 focus:border-slate-500 transition-all duration-200 font-medium ${
+                        darkMode 
+                          ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400 focus:bg-gray-600' 
+                          : 'bg-white border-slate-300 text-slate-900 placeholder-slate-400'
+                      } ${
+                        errors.clientEmail ? 'border-red-500 shake' : ''
+                      }`}
+                      placeholder="client@company.com (optional)"
+                    />
+                    {errors.clientEmail && (
+                      <p className="mt-1 text-sm text-red-600 animate-pulse font-medium">{errors.clientEmail}</p>
+                    )}
+                  </div>
+
+                  <div>
+                    <label className={`block text-sm font-medium mb-2 flex items-center gap-2 ${
+                      darkMode ? 'text-gray-300' : 'text-slate-700'
+                    }`}>
+                      <Phone className={`w-4 h-4 ${darkMode ? 'text-gray-400' : 'text-slate-600'}`} />
+                      Client Phone
+                    </label>
+                    <input
+                      type="tel"
+                      value={invoice.clientPhone}
+                      onChange={(e) => updateInvoice('clientPhone', e.target.value)}
+                      className={`w-full px-4 py-3 border rounded-md focus:ring-2 focus:ring-slate-500 focus:border-slate-500 transition-all duration-200 font-medium ${
+                        darkMode 
+                          ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400 focus:bg-gray-600' 
+                          : 'bg-white border-slate-300 text-slate-900 placeholder-slate-400'
+                      } ${
+                        errors.clientPhone ? 'border-red-500 shake' : ''
+                      }`}
+                      placeholder="+1 234 567 8900 (optional)"
+                    />
+                    {errors.clientPhone && (
+                      <p className="mt-1 text-sm text-red-600 animate-pulse font-medium">{errors.clientPhone}</p>
+                    )}
+                  </div>
+                </div>
+
+                <div>
+                  <label className={`block text-sm font-medium mb-2 flex items-center gap-2 ${
+                    darkMode ? 'text-gray-300' : 'text-slate-700'
+                  }`}>
+                    <MapPin className={`w-4 h-4 ${darkMode ? 'text-gray-400' : 'text-slate-600'}`} />
+                    Client Address
+                  </label>
+                  <textarea
+                    value={invoice.clientAddress}
+                    onChange={(e) => updateInvoice('clientAddress', e.target.value)}
+                    rows={3}
+                    className={`w-full px-4 py-3 border rounded-md focus:ring-2 focus:ring-slate-500 focus:border-slate-500 transition-all duration-200 font-medium resize-vertical ${
+                      darkMode 
+                        ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400 focus:bg-gray-600' 
+                        : 'bg-white border-slate-300 text-slate-900 placeholder-slate-400'
+                    }`}
+                    placeholder="123 Client Street&#10;City, State 12345&#10;Country (optional)"
+                  />
+                </div>
               </div>
             </div>
 
